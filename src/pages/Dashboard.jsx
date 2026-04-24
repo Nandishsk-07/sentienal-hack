@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { 
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, 
   BarChart, Bar, Cell 
@@ -15,33 +16,7 @@ const alertVolumeData = [
   { day: 'Apr 22', alerts: 180 }, { day: 'Apr 23', alerts: 215 },
 ];
 
-const riskDistributionData = [
-  { name: 'Low', value: 850, color: '#3B82F6' },
-  { name: 'Medium', value: 320, color: '#F59E0B' },
-  { name: 'High', value: 145, color: '#F97316' },
-  { name: 'Critical', value: 38, color: '#FF3B3B' },
-];
-
-const leaderboardData = [
-  { id: 'USR-891X', dept: 'Finance', score: 98, lastAnomaly: '2 mins ago', status: 'Suspended' },
-  { id: 'USR-214Y', dept: 'Operations', score: 94, lastAnomaly: '15 mins ago', status: 'Active' },
-  { id: 'USR-552A', dept: 'IT Admin', score: 91, lastAnomaly: '1 hour ago', status: 'Active' },
-  { id: 'USR-773B', dept: 'Trading', score: 88, lastAnomaly: '2 hours ago', status: 'Watchlist' },
-  { id: 'USR-119C', dept: 'Retail', score: 85, lastAnomaly: '3 hours ago', status: 'Active' },
-  { id: 'USR-404D', dept: 'Vendor Mgmt', score: 82, lastAnomaly: '4 hours ago', status: 'Watchlist' },
-  { id: 'USR-992E', dept: 'Trading', score: 79, lastAnomaly: '6 hours ago', status: 'Active' },
-];
-
-const liveAlerts = [
-  { id: 1001, severity: 'critical', user: 'USR-891X', desc: 'Multiple login attempts from blacklisted IP.', time: '10:45:12 AM' },
-  { id: 1002, severity: 'high', user: 'USR-214Y', desc: 'Large uncharacteristic database query executed.', time: '10:42:05 AM' },
-  { id: 1003, severity: 'medium', user: 'USR-119C', desc: 'Concurrent access from two different countries.', time: '10:35:44 AM' },
-  { id: 1004, severity: 'critical', user: 'USR-552A', desc: 'Admin bypass protocol initiated off-hours.', time: '10:28:19 AM' },
-  { id: 1005, severity: 'low', user: 'USR-773B', desc: 'Failed 2FA validation on device.', time: '10:15:02 AM' },
-  { id: 1006, severity: 'high', user: 'USR-404D', desc: 'Velocity check failed on recent transfers.', time: '09:58:33 AM' },
-  { id: 1007, severity: 'medium', user: 'SYS-CORE', desc: 'Unusual spike in API throttles.', time: '09:40:11 AM' },
-  { id: 1008, severity: 'high', user: 'USR-992E', desc: 'Accessing sensitive compliance records.', time: '09:22:50 AM' },
-];
+// Leaderboard, riskDistribution, and liveAlerts dynamic states moved inside component
 
 // Generate 7x24 heatmap mock data (0 = none, 1 = low, 2 = med, 3 = high, 4 = critical)
 const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -96,6 +71,79 @@ const AnimatedCounter = ({ end, duration = 1000 }) => {
 };
 
 const Dashboard = () => {
+  const [leaderboardData, setLeaderboardData] = useState([]);
+  const [riskDistributionData, setRiskDistributionData] = useState([]);
+  const [liveAlerts, setLiveAlerts] = useState([]);
+
+  useEffect(() => {
+    // 1. Fetch initial Leaderboard & Risk Data
+    axios.get('http://127.0.0.1:8000/users/risk-scores')
+      .then(res => {
+        const users = res.data;
+        // Sort descending by score for leaderboard
+        const sorted = [...users].sort((a, b) => b.risk_score - a.risk_score).slice(0, 10);
+        
+        // Map backend schema to frontend table Schema 
+        setLeaderboardData(sorted.map(u => ({
+          id: u.user_id,
+          dept: u.department,
+          score: Math.round(u.risk_score),
+          lastAnomaly: u.last_active, // Use last_active as proxy
+          status: u.status
+        })));
+        
+        // Build the Risk Distribution mathematically
+        let low = 0, med = 0, high = 0, crit = 0;
+        users.forEach(u => {
+          if (u.risk_score >= 90) crit++;
+          else if (u.risk_score >= 80) high++;
+          else if (u.risk_score >= 50) med++;
+          else low++;
+        });
+        
+        setRiskDistributionData([
+          { name: 'Low', value: low, color: '#3B82F6' },
+          { name: 'Medium', value: med, color: '#F59E0B' },
+          { name: 'High', value: high, color: '#F97316' },
+          { name: 'Critical', value: crit, color: '#FF3B3B' },
+        ]);
+      })
+      .catch(console.error);
+
+    // 2. Fetch Initial Alerts Timeline
+    axios.get('http://127.0.0.1:8000/alerts')
+      .then(res => {
+        setLiveAlerts(res.data.slice(0, 10).map(a => ({
+          id: a.id,
+          severity: a.severity,
+          user: a.user_id,
+          desc: a.description,
+          time: a.timestamp
+        })));
+      })
+      .catch(console.error);
+
+    // 3. Connect WebSocket for Live Alerts Feed
+    const ws = new WebSocket('ws://127.0.0.1:8000/ws/alerts');
+    ws.onmessage = (event) => {
+      const a = JSON.parse(event.data);
+      const newAlert = {
+        id: a.id,
+        severity: a.severity,
+        user: a.user_id,
+        desc: a.description,
+        time: a.timestamp
+      };
+      
+      setLiveAlerts(prev => {
+        const next = [newAlert, ...prev];
+        return next.slice(0, 15); // Keep last 15 in UI
+      });
+    };
+
+    return () => ws.close(); // Cleanup
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#0A0E1A] p-6 lg:p-8 text-white relative font-sans overflow-x-hidden">
       

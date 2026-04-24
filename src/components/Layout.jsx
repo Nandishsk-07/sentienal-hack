@@ -3,6 +3,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { LayoutDashboard, Users, AlertTriangle, Network, Route, Link as LinkIcon, LogOut, Code, Menu, X } from 'lucide-react';
 import clsx from 'clsx';
+import Chatbot from './Chatbot';
 
 const navItems = [
   { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
@@ -111,6 +112,9 @@ const Layout = () => {
           <Outlet />
         </div>
       </main>
+
+      {/* Global AI Investigator Chatbot */}
+      <Chatbot />
     </div>
   );
 };

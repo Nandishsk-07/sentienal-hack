@@ -5,13 +5,13 @@ import Layout from './components/Layout';
 import Login from './pages/Login';
 
 import Dashboard from './pages/Dashboard';
+import CollusionGraph from './pages/CollusionGraph';
+import RiskTrajectory from './pages/RiskTrajectory';
+import BlockchainLog from './pages/BlockchainLog';
 
 // Placeholder Components for secondary views
 const Users = () => <div className="p-6"><h1 className="text-3xl font-bold glow-cyan-text mb-4">User Monitoring</h1><p className="text-muted">Track suspicious activity across individual accounts.</p></div>;
 const Alerts = () => <div className="p-6"><h1 className="text-3xl font-bold glow-red-text mb-4">Critical Alerts</h1><p className="text-muted">Real-time fraud triggers and AI confidence scores.</p></div>;
-const Graph = () => <div className="p-6"><h1 className="text-3xl font-bold glow-cyan-text mb-4">Knowledge Graph</h1><p className="text-muted">Visualize entity relationships and money movement vectors.</p></div>;
-const Trajectory = () => <div className="p-6"><h1 className="text-3xl font-bold glow-cyan-text mb-4">Trajectory Analysis</h1><p className="text-muted">Predictive timeline mapping for flagged transactions.</p></div>;
-const Blockchain = () => <div className="p-6"><h1 className="text-3xl font-bold glow-cyan-text mb-4">Blockchain Explorer</h1><p className="text-muted">Analyze crypto-to-fiat off-ramps and multi-sig wallets.</p></div>;
 
 const ProtectedRoute = ({ children }) => {
   const { user } = useAuth();
@@ -30,9 +30,9 @@ const AppRoutes = () => {
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="users" element={<Users />} />
         <Route path="alerts" element={<Alerts />} />
-        <Route path="graph" element={<Graph />} />
-        <Route path="trajectory" element={<Trajectory />} />
-        <Route path="blockchain" element={<Blockchain />} />
+        <Route path="graph" element={<CollusionGraph />} />
+        <Route path="trajectory" element={<RiskTrajectory />} />
+        <Route path="blockchain" element={<BlockchainLog />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

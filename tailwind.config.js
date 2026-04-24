@@ -11,7 +11,7 @@ export default {
         danger: '#FF3B3B',      // Red
         background: '#0A0E1A',  // Near Black
         surface: '#111827',     // Dark Gray/Blue Surface
-        muted: '#1F2937'        // Muted gray
+        muted: '#9CA3AF'        // Muted gray
       },
       fontFamily: {
         sans: ['Inter', 'sans-serif'],
