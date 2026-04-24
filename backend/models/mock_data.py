@@ -71,3 +71,27 @@ for uid in MOCK_USERS.keys():
     # Sort backwards by time
     user_txs.sort(key=lambda x: x['timestamp'], reverse=True)
     MOCK_TRANSACTIONS[uid] = user_txs
+
+# Mock Devices
+DEVICE_REGISTRY = {}
+for idx, uid in enumerate(list(MOCK_USERS.keys())):
+    devices = []
+    for d in range(random.randint(1, 2)):
+        fp_id = f"FP-{random.randint(10000000, 99999999):x}"
+        devices.append({
+            "deviceId": fp_id,
+            "user_id": uid,
+            "first_seen": "2026-01-01 10:00:00",
+            "last_seen": "2026-04-20 10:00:00",
+            "trust_level": 2,
+            "is_registered": True,
+            "login_count": random.randint(10, 100),
+            "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "timezone": "Asia/Kolkata",
+            "screen": "1920x1080"
+        })
+    DEVICE_REGISTRY[uid] = devices
+
+# Mock Notifications
+MOCK_NOTIFICATIONS = []
+

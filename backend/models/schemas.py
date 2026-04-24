@@ -4,6 +4,46 @@ from typing import List, Optional, Dict, Any
 class Token(BaseModel):
     access_token: str
     token_type: str
+    trust_level: Optional[str] = None
+
+class DeviceFingerprint(BaseModel):
+    deviceId: str
+    userAgent: str
+    screen: str
+    timezone: str
+    language: str
+    platform: str
+    cores: Optional[int] = None
+    memory: Optional[int] = None
+    trustLevel: Optional[str] = None
+    collectionFailed: Optional[bool] = False
+    failureReason: Optional[str] = None
+
+class DeviceRecord(BaseModel):
+    deviceId: str
+    user_id: str
+    first_seen: str
+    last_seen: str
+    trust_level: int
+    is_registered: bool
+    login_count: int
+    userAgent: Optional[str] = None
+    timezone: Optional[str] = None
+    screen: Optional[str] = None
+
+class DeviceTrustResponse(BaseModel):
+    trust_level: int
+    is_registered: bool
+    risk_contribution: int
+    message: str
+
+class DeviceVerifyRequest(BaseModel):
+    user_id: str
+    fingerprint: DeviceFingerprint
+
+class DeviceRegisterRequest(BaseModel):
+    user_id: str
+    fingerprint: DeviceFingerprint
 
 class TokenData(BaseModel):
     username: Optional[str] = None
@@ -13,6 +53,7 @@ class UserLogin(BaseModel):
     username: str
     password: str
     role: str = "FRAUD_INVESTIGATOR"
+    deviceFingerprint: Optional[DeviceFingerprint] = None
 
 class Transaction(BaseModel):
     tx_id: str

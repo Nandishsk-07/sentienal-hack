@@ -4,7 +4,7 @@ import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, 
   BarChart, Bar, Cell 
 } from 'recharts';
-import { ShieldAlert, Users, Activity, ScanLine, Eye, AlertTriangle } from 'lucide-react';
+import { ShieldAlert, Users, Activity, ScanLine, Eye, AlertTriangle, Shield } from 'lucide-react';
 import clsx from 'clsx';
 
 // --- MOCK DATA ---
@@ -83,13 +83,15 @@ const Dashboard = () => {
         // Sort descending by score for leaderboard
         const sorted = [...users].sort((a, b) => b.risk_score - a.risk_score).slice(0, 10);
         
-        // Map backend schema to frontend table Schema 
+        // Map backend schema to frontend table Schema
         setLeaderboardData(sorted.map(u => ({
           id: u.user_id,
           dept: u.department,
           score: Math.round(u.risk_score),
           lastAnomaly: u.last_active, // Use last_active as proxy
-          status: u.status
+          status: u.status,
+          // Extract trust logic
+          lastDeviceTrust: u.risk_score >= 90 ? 0 : u.risk_score >= 70 ? 1 : 2
         })));
         
         // Build the Risk Distribution mathematically
@@ -270,12 +272,13 @@ const Dashboard = () => {
                       <th className="p-4 font-medium">Risk Score</th>
                       <th className="p-4 font-medium">Last Anomaly</th>
                       <th className="p-4 font-medium">Status</th>
+                      <th className="p-4 font-medium text-center">Last Device</th>
                       <th className="p-4 font-medium">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/10">
                     {leaderboardData.map((user) => (
-                      <tr key={user.id} className="hover:bg-white/5 transition-colors group">
+                      <tr key={user.id} className={clsx("hover:bg-white/5 transition-colors group relative", user.lastDeviceTrust === 0 && "border-l-4 border-l-[#FF3B3B]/70")}>
                         <td className="p-4 font-mono font-bold text-white group-hover:text-primary transition-colors">{user.id}</td>
                         <td className="p-4 text-gray-300">{user.dept}</td>
                         <td className="p-4">
@@ -302,6 +305,15 @@ const Dashboard = () => {
                             )}></span>
                             {user.status}
                           </span>
+                        </td>
+                        <td className="p-4 text-center">
+                          {user.lastDeviceTrust === 2 ? (
+                            <Shield className="w-4 h-4 mx-auto text-[#00FFD1]" title="Trusted Device" />
+                          ) : user.lastDeviceTrust === 1 ? (
+                            <Shield className="w-4 h-4 mx-auto text-[#F59E0B]" title="Partial Match" />
+                          ) : (
+                            <Shield className="w-4 h-4 mx-auto text-[#FF3B3B]" title="Unknown Device" />
+                          )}
                         </td>
                         <td className="p-4">
                           <button className="flex items-center justify-center p-2 rounded bg-white/5 hover:bg-primary/20 text-gray-300 hover:text-primary border border-transparent hover:border-primary/50 transition-all">

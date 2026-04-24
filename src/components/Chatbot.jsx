@@ -32,8 +32,9 @@ const Chatbot = ({ activeUser = null }) => {
       const context = activeUser ? {
         user_id: activeUser.id || 'User_0042',
         risk_score: activeUser.risk || 95,
-        flags: ['Shared IP', 'High Data Volume Off-Hours', 'Unusual Privileges']
-      } : { risk_score: 95, flags: ["Data Exfil Indicator"]};
+        flags: ['Shared IP', 'High Data Volume Off-Hours', 'Unusual Privileges'],
+        device_trust_level: activeUser.lastDeviceTrust === 0 ? 'UNKNOWN_DEVICE_RISK' : 'TRUSTED'
+      } : { risk_score: 95, flags: ["Data Exfil Indicator"], device_trust_level: 'UNKNOWN_DEVICE_RISK' };
 
       const payload = {
         messages: [...messages, userMessage].map(m => ({ role: m.role, content: m.content })),

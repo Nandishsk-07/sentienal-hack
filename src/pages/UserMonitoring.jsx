@@ -9,6 +9,7 @@ import {
   AlertTriangle, Activity, Clock, Database, TrendingUp, X, ExternalLink
 } from 'lucide-react';
 import clsx from 'clsx';
+import { useAuth } from '../contexts/AuthContext';
 
 /* ─── helpers ─── */
 const riskColor = (score) =>
@@ -71,8 +72,32 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
-/* ─── Expanded User Detail Panel ─── */
 const UserDetailPanel = ({ user, transactions, onClose }) => {
+  const { user: currentUser } = useAuth();
+  const [devices, setDevices] = useState([]);
+  
+  useEffect(() => {
+    const token = localStorage.getItem('sentinel_token');
+    if (token) {
+      axios.get(`http://127.0.0.1:8000/devices/${user.user_id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      .then(res => setDevices(res.data))
+      .catch(console.error);
+    }
+  }, [user.user_id]);
+
+  const removeDevice = (deviceId) => {
+    const token = localStorage.getItem('sentinel_token');
+    if (token) {
+      axios.delete(`http://127.0.0.1:8000/devices/${deviceId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      }).then(() => {
+        setDevices(prev => prev.filter(d => d.deviceId !== deviceId));
+      });
+    }
+  };
+
   const sparkData = useMemo(() => genSparkline(user.risk_score), [user.risk_score]);
   const anomTxs = transactions.filter(t => t.is_anomaly);
   const totalSpent = transactions.reduce((s, t) => s + t.amount, 0);
@@ -168,7 +193,7 @@ const UserDetailPanel = ({ user, transactions, onClose }) => {
                       <td className={clsx("p-3 font-mono font-bold",
                         tx.is_anomaly ? "text-[#FF3B3B]" : "text-gray-300"
                       )}>
-                        ${tx.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        ₹{tx.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                         {tx.is_anomaly && <span className="ml-2 text-[10px] bg-[#FF3B3B]/20 text-[#FF3B3B] px-1.5 py-0.5 rounded border border-[#FF3B3B]/30">ANOMALY</span>}
                       </td>
                       <td className="p-3 text-gray-400">{tx.merchant}</td>
@@ -182,6 +207,56 @@ const UserDetailPanel = ({ user, transactions, onClose }) => {
               </table>
             </div>
           </div>
+        </div>
+        {/* Registered Devices */}
+        <div className="px-6 pb-6 mt-4">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-sm font-bold text-gray-300 uppercase tracking-widest flex items-center gap-2">
+              <Shield className="w-4 h-4 text-primary" /> Registered Devices
+            </h3>
+            {currentUser?.role === 'BRANCH_MANAGER' && (
+              <button className="text-xs text-[#00FFD1] border border-[#00FFD1]/30 hover:bg-[#00FFD1]/10 px-3 py-1 rounded transition-colors uppercase font-bold tracking-wider">
+                Register New Device
+              </button>
+            )}
+          </div>
+          
+          {devices.length === 0 ? (
+            <div className="bg-[#FF3B3B]/10 border border-[#FF3B3B]/30 rounded-lg p-4 flex items-center gap-3">
+              <AlertTriangle className="w-5 h-5 text-[#FF3B3B]" />
+              <span className="text-sm text-[#FF3B3B] font-bold">No trusted devices registered — all logins will be flagged.</span>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {devices.map((d, i) => (
+                <div key={i} className="glass-panel p-4 rounded-xl border border-white/10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                  <div>
+                    <div className="flex items-center gap-3 mb-1">
+                      <span className="font-mono font-bold text-white text-sm">{d.deviceId}</span>
+                      {d.trust_level === 2 ? (
+                        <span className="text-[10px] bg-[#00FFD1]/15 text-[#00FFD1] border border-[#00FFD1]/40 px-2 py-0.5 rounded font-bold uppercase tracking-wider flex items-center gap-1"><Shield className="w-3 h-3"/> TRUSTED</span>
+                      ) : d.trust_level === 1 ? (
+                        <span className="text-[10px] bg-[#F59E0B]/15 text-[#F59E0B] border border-[#F59E0B]/40 px-2 py-0.5 rounded font-bold uppercase tracking-wider flex items-center gap-1"><AlertTriangle className="w-3 h-3"/> PARTIAL</span>
+                      ) : (
+                        <span className="text-[10px] bg-[#FF3B3B]/15 text-[#FF3B3B] border border-[#FF3B3B]/40 px-2 py-0.5 rounded font-bold uppercase tracking-wider flex items-center gap-1"><AlertTriangle className="w-3 h-3"/> UNKNOWN</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted flex gap-3">
+                      <span>{d.userAgent ? "Win32" : "Unknown OS"}</span>
+                      <span>{d.screen || "1920x1080"}</span>
+                      <span>{d.timezone || "UTC"}</span>
+                      <span>Last seen: {d.last_seen}</span>
+                    </p>
+                  </div>
+                  {currentUser?.role === 'BRANCH_MANAGER' && (
+                    <button onClick={() => removeDevice(d.deviceId)} className="text-[10px] text-[#FF3B3B] border border-[#FF3B3B]/30 hover:bg-[#FF3B3B]/10 px-2 py-1.5 rounded transition-colors uppercase font-bold tracking-wider whitespace-nowrap">
+                      Remove Device
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

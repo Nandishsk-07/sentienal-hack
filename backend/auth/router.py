@@ -38,11 +38,26 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 
 @router.post("/login", response_model=Token)
 async def login(user: UserLogin):
-    # Accept any login for hackathon simplicity
+    from devices.router import check_device_trust
+    
+    trust_val = 0
+    fp_status = "UNKNOWN"
+    
+    if user.deviceFingerprint:
+        trust_val, reg, risk, msg, fp_status = check_device_trust(user.username, user.deviceFingerprint)
+    
     access_token = create_access_token(
-        data={"sub": user.username, "role": user.role}
+        data={
+            "sub": user.username, 
+            "role": user.role, 
+            "device_trust_level": trust_val,
+            "fingerprint_status": fp_status
+        }
     )
-    return {"access_token": access_token, "token_type": "bearer"}
+    
+    # Check_device_trust now handles all internal alert triggering and notifications automatically.
+            
+    return {"access_token": access_token, "token_type": "bearer", "trust_level": str(trust_val)}
 
 @router.post("/logout")
 async def logout():

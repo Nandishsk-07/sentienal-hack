@@ -11,6 +11,8 @@ from alerts.router import router as alerts_router
 from ml.router import router as ml_router
 from blockchain.router import router as blockchain_router
 from chat.router import router as chat_router
+from devices.router import router as devices_router
+from notifications.router import router as notifications_router
 from models.mock_data import MOCK_USERS
 
 app = FastAPI(title="SENTINEL Fraud API", version="1.0.0")
@@ -31,6 +33,8 @@ app.include_router(alerts_router, prefix="/alerts", tags=["Alerts"])
 app.include_router(ml_router, prefix="/ml", tags=["Machine Learning"])
 app.include_router(blockchain_router, prefix="/blockchain", tags=["Audit Log"])
 app.include_router(chat_router, prefix="/chat", tags=["AI Integration"])
+app.include_router(devices_router, prefix="/devices", tags=["Device Management"])
+app.include_router(notifications_router, prefix="/notifications", tags=["Notifications"])
 
 # WebSocket Manager
 class ConnectionManager:

@@ -30,9 +30,10 @@ def _load_artifacts():
         # For IsolationForest, TreeExplainer works directly
         _explainer = shap.TreeExplainer(_model)
 
-def score_user(features_dict: dict) -> dict:
+def score_user(features_dict: dict, device_trust_level: int = 1) -> dict:
     """
     Returns risk score mapping (0-100) and is_anomaly boolean.
+    device_trust_level modifies final score.
     """
     _load_artifacts()
     
@@ -49,11 +50,19 @@ def score_user(features_dict: dict) -> dict:
     
     # Convert to 0-100 risk score. More negative = Higher Risk.
     # We will normalize it where baseline inlier ~ 10, strong outlier ~ 99
-    risk_score = min(max(((0.2 - raw_score) / 0.5) * 100, 0), 100)
+    # Adjust risk score based on device trust (0: untrusted, 1: partial, 2: trusted)
+    if device_trust_level == 0:
+        risk_score += 25
+    elif device_trust_level == 1:
+        risk_score += 10
+    elif device_trust_level == 2:
+        risk_score -= 10
+        
+    risk_score = min(max(float(risk_score), 0.0), 100.0)
     
     # Predict directly (-1 is Anomaly, 1 is Normal)
     pred = _model.predict(feature_scaled)[0]
-    is_anomaly = bool(pred == -1)
+    is_anomaly = bool(pred == -1) or (device_trust_level == 0)
     
     return {
         "risk_score": round(float(risk_score), 1),

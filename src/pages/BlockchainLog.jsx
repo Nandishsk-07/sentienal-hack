@@ -23,6 +23,8 @@ const BlockchainLog = () => {
       setStats(prev => ({ ...prev, total_blocks: res.data.total_blocks }));
     } catch (err) {
       console.error("Failed to fetch blockchain log:", err);
+      // Ensure we clear loading status on error to avoid infinite spinner
+      setLoading(false);
     } finally {
       setLoading(false);
     }
@@ -36,6 +38,8 @@ const BlockchainLog = () => {
     } catch (err) {
       console.error("Failed to verify chain:", err);
       setStats(prev => ({ ...prev, valid: false }));
+      // Ensure verifying state is cleared
+      setVerifying(false);
     } finally {
       setVerifying(false);
     }

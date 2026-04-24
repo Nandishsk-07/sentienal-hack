@@ -3,15 +3,30 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { ShieldAlert, User, KeyRound, ChevronRight, Fingerprint } from 'lucide-react';
 import clsx from 'clsx';
+import { collectDeviceFingerprint } from '../utils/deviceFingerprint';
 
 const Login = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('FRAUD_INVESTIGATOR');
   const [isLoading, setIsLoading] = useState(false);
+  const [simulateUnknown, setSimulateUnknown] = useState(false);
   const [error, setError] = useState('');
+  const [fingerprint, setFingerprint] = useState(null);
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  React.useEffect(() => {
+    try {
+      setFingerprint(collectDeviceFingerprint());
+    } catch (e) {
+      setFingerprint({
+        deviceId: "FP-COLLECTION-FAILED",
+        collectionFailed: true,
+        failureReason: e.message
+      });
+    }
+  }, []);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -28,7 +43,10 @@ const Login = () => {
     try {
       // Simulate network delay for effect
       await new Promise(resolve => setTimeout(resolve, 800));
-      await login(username, password, role);
+      const finalFingerprint = simulateUnknown 
+        ? { ...fingerprint, deviceId: `FP-UNKNOWN-${Math.random().toString(16).slice(2, 10)}` } 
+        : fingerprint;
+      await login(username, password, role, finalFingerprint);
       navigate('/dashboard');
     } catch (err) {
       setError('Access Denied. Multi-factor authentication failed.');
@@ -110,6 +128,19 @@ const Login = () => {
             </select>
           </div>
 
+          <div className="flex items-center gap-3 mt-4 p-3 rounded-lg bg-danger/5 border border-danger/20 hover:border-danger/40 transition-colors">
+            <input 
+              type="checkbox" 
+              id="sim-unknown" 
+              checked={simulateUnknown} 
+              onChange={(e) => setSimulateUnknown(e.target.checked)}
+              className="w-4 h-4 bg-background border border-muted rounded focus:ring-danger focus:ring-1 accent-danger cursor-pointer" 
+            />
+            <label htmlFor="sim-unknown" className="text-xs font-bold text-gray-300 uppercase tracking-widest cursor-pointer select-none">
+              [DEMO] SPOOF FINGERPRINT AS UNTRUSTED
+            </label>
+          </div>
+
           <button
             type="submit"
             disabled={isLoading}
@@ -126,6 +157,13 @@ const Login = () => {
             )}
           </button>
         </form>
+
+        {fingerprint?.collectionFailed && (
+          <div className="mt-6 p-4 rounded bg-[#F59E0B]/10 border border-[#F59E0B]/50 text-[#F59E0B] text-xs flex items-start gap-3">
+            <ShieldAlert className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <span>Security check incomplete — your login will be reviewed for safety.</span>
+          </div>
+        )}
 
         <div className="mt-8 text-center border-t border-white/10 pt-4">
           <p className="text-xs text-muted flex items-center justify-center gap-1">

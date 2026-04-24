@@ -10,6 +10,7 @@ import CriticalAlerts from './pages/CriticalAlerts';
 import CollusionGraph from './pages/CollusionGraph';
 import RiskTrajectory from './pages/RiskTrajectory';
 import BlockchainLog from './pages/BlockchainLog';
+import MyNotifications from './pages/MyNotifications';
 
 const ProtectedRoute = ({ children }) => {
   const { user } = useAuth();
@@ -31,6 +32,7 @@ const AppRoutes = () => {
         <Route path="graph" element={<CollusionGraph />} />
         <Route path="trajectory" element={<RiskTrajectory />} />
         <Route path="blockchain" element={<BlockchainLog />} />
+        <Route path="notifications" element={<MyNotifications />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

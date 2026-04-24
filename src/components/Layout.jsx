@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { LayoutDashboard, Users, AlertTriangle, Network, Route, Link as LinkIcon, LogOut, Code, Menu, X } from 'lucide-react';
 import clsx from 'clsx';
 import Chatbot from './Chatbot';
+import NotificationBell from './NotificationBell';
 
 const navItems = [
   { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
@@ -97,6 +98,7 @@ const Layout = () => {
           </div>
 
           <div className="flex items-center gap-4">
+            <NotificationBell />
             <div className="text-right flex flex-col hidden sm:flex">
               <span className="text-sm font-semibold">{user?.username || 'Admin'}</span>
               <span className="text-xs text-primary glow-cyan-text">{user?.role || 'SYSTEM'}</span>

@@ -108,6 +108,30 @@ const AlertDetailModal = ({ alert, onClose, onSubmitFeedback }) => {
             <p className="text-sm text-gray-300 leading-relaxed">{alert.description}</p>
           </div>
 
+          {/* Unknown Device Fingerprint Raw Expand */}
+          {alert.description?.toLowerCase().includes("unregistered device") && (
+            <div className="glass-panel p-4 rounded-xl border border-[#F59E0B]/40 bg-[#F59E0B]/5 overflow-hidden">
+              <h4 className="text-xs text-[#F59E0B] uppercase tracking-wider mb-3 flex items-center gap-2 font-bold">
+                <Zap className="w-3.5 h-3.5" /> High Risk Environment Payload
+              </h4>
+              <pre className="text-[10px] sm:text-xs font-mono text-gray-300 bg-[#0A0E1A] p-4 rounded-lg border border-[#F59E0B]/20 overflow-x-auto whitespace-pre-wrap word-break">
+{`{
+  "event": "Login Attempt",
+  "reason": "Fingerprint mismatch across known registry database.",
+  "captured_context": {
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/... Chrome/...",
+    "timezone": "Asia/Kolkata",
+    "screenResolution": "1920x1080",
+    "cores": 8,
+    "memory": 8,
+    "platform": "Win32",
+    "deviceId": "FP-UNKNOWN"
+  }
+}`}
+              </pre>
+            </div>
+          )}
+
           {/* Investigator Notes (if any) */}
           {alert.investigator_notes && (
             <div className="glass-panel p-4 rounded-xl border border-primary/20 bg-primary/5">
@@ -508,6 +532,11 @@ const CriticalAlerts = () => {
                             style={{ color: st.color, borderWidth: '1px' }}>
                             {st.label}
                           </span>
+                          {alert.description?.toLowerCase().includes("unregistered device") && (
+                            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded text-[#F59E0B] bg-[#F59E0B]/15 border border-[#F59E0B]/30 hidden sm:inline-block">
+                              UNKNOWN DEVICE
+                            </span>
+                          )}
                         </div>
                         <p className="text-sm text-gray-400 truncate">{alert.description}</p>
                       </div>
