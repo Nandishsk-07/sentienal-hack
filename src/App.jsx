@@ -5,13 +5,11 @@ import Layout from './components/Layout';
 import Login from './pages/Login';
 
 import Dashboard from './pages/Dashboard';
+import UserMonitoring from './pages/UserMonitoring';
+import CriticalAlerts from './pages/CriticalAlerts';
 import CollusionGraph from './pages/CollusionGraph';
 import RiskTrajectory from './pages/RiskTrajectory';
 import BlockchainLog from './pages/BlockchainLog';
-
-// Placeholder Components for secondary views
-const Users = () => <div className="p-6"><h1 className="text-3xl font-bold glow-cyan-text mb-4">User Monitoring</h1><p className="text-muted">Track suspicious activity across individual accounts.</p></div>;
-const Alerts = () => <div className="p-6"><h1 className="text-3xl font-bold glow-red-text mb-4">Critical Alerts</h1><p className="text-muted">Real-time fraud triggers and AI confidence scores.</p></div>;
 
 const ProtectedRoute = ({ children }) => {
   const { user } = useAuth();
@@ -28,8 +26,8 @@ const AppRoutes = () => {
       <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
-        <Route path="users" element={<Users />} />
-        <Route path="alerts" element={<Alerts />} />
+        <Route path="users" element={<UserMonitoring />} />
+        <Route path="alerts" element={<CriticalAlerts />} />
         <Route path="graph" element={<CollusionGraph />} />
         <Route path="trajectory" element={<RiskTrajectory />} />
         <Route path="blockchain" element={<BlockchainLog />} />
