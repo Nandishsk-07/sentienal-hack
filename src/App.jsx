@@ -4,8 +4,9 @@ import { useAuth, AuthProvider } from './contexts/AuthContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 
-// Placeholder Components for Dashboard views
-const Dashboard = () => <div className="p-6"><h1 className="text-3xl font-bold glow-cyan-text mb-4">Dashboard Overview</h1><p className="text-muted">System metrics and high-level anomaly detection status.</p></div>;
+import Dashboard from './pages/Dashboard';
+
+// Placeholder Components for secondary views
 const Users = () => <div className="p-6"><h1 className="text-3xl font-bold glow-cyan-text mb-4">User Monitoring</h1><p className="text-muted">Track suspicious activity across individual accounts.</p></div>;
 const Alerts = () => <div className="p-6"><h1 className="text-3xl font-bold glow-red-text mb-4">Critical Alerts</h1><p className="text-muted">Real-time fraud triggers and AI confidence scores.</p></div>;
 const Graph = () => <div className="p-6"><h1 className="text-3xl font-bold glow-cyan-text mb-4">Knowledge Graph</h1><p className="text-muted">Visualize entity relationships and money movement vectors.</p></div>;
