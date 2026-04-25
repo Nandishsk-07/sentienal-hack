@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 
+import { API_BASE_URL } from '../apiConfig';
+
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
@@ -24,7 +26,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (username, password, role, deviceFingerprint) => {
     try {
-      const response = await axios.post('http://127.0.0.1:8000/auth/login', {
+      const response = await axios.post(`${API_BASE_URL}/auth/login`, {
         username,
         password,
         role,

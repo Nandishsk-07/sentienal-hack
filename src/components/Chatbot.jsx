@@ -1,7 +1,22 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bot, X, Send, User, ChevronDown, Activity, AlertTriangle } from 'lucide-react';
+import { Bot, X, Send, User, ChevronDown, Activity, AlertTriangle, FileSpreadsheet } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import { API_BASE_URL } from '../apiConfig';
 
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = API_BASE_URL;
+
+const exportToExcel = (data, filename = "SENTINEL_Export.xlsx") => {
+  try {
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Fraud Data");
+    XLSX.writeFile(workbook, filename);
+    return true;
+  } catch (err) {
+    console.error("Excel export failed:", err);
+    return false;
+  }
+};
 
 const Chatbot = ({ activeUser = null }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -36,8 +51,15 @@ const Chatbot = ({ activeUser = null }) => {
         device_trust_level: activeUser.lastDeviceTrust === 0 ? 'UNKNOWN_DEVICE_RISK' : 'TRUSTED'
       } : { risk_score: 95, flags: ["Data Exfil Indicator"], device_trust_level: 'UNKNOWN_DEVICE_RISK' };
 
+      // Anthropic requires the first message to be from 'user'.
+      // Our state starts with an assistant greeting, so we filter it out if it's the first message.
+      let apiMessages = [...messages, userMessage].map(m => ({ role: m.role, content: m.content }));
+      if (apiMessages.length > 0 && apiMessages[0].role === 'assistant') {
+        apiMessages = apiMessages.slice(1);
+      }
+
       const payload = {
-        messages: [...messages, userMessage].map(m => ({ role: m.role, content: m.content })),
+        messages: apiMessages,
         context: context
       };
 
@@ -55,10 +77,29 @@ const Chatbot = ({ activeUser = null }) => {
       const decoder = new TextDecoder('utf-8');
       
       let assistantResponse = '';
+      let isExporting = false;
 
       while (true) {
         const { value, done } = await reader.read();
-        if (done) break;
+        if (done) {
+          // Final check for Excel export after stream ends
+          if (assistantResponse.includes('EXPORT_EXCEL:')) {
+            const parts = assistantResponse.split('EXPORT_EXCEL:');
+            const jsonStr = parts[1].trim();
+            try {
+              const data = JSON.parse(jsonStr);
+              exportToExcel(Array.isArray(data) ? data : [data]);
+              setMessages(prev => {
+                const next = [...prev];
+                next[next.length - 1].content = parts[0] + "\n\n✅ **Excel file generated successfully.**";
+                return next;
+              });
+            } catch (e) {
+              console.error("Failed to parse Excel JSON:", e);
+            }
+          }
+          break;
+        }
         
         const chunk = decoder.decode(value, { stream: true });
         const lines = chunk.split('\n');
@@ -72,10 +113,21 @@ const Chatbot = ({ activeUser = null }) => {
               const data = JSON.parse(dataStr);
               if (data.type === 'content_block_delta' && data.delta?.type === 'text_delta') {
                 assistantResponse += data.delta.text;
-                // Update the last message in state
+                
+                // If we detect the start of an export, show a status message
+                if (assistantResponse.includes('EXPORT_EXCEL:') && !isExporting) {
+                  isExporting = true;
+                }
+
                 setMessages(prev => {
                   const newMessages = [...prev];
-                  newMessages[newMessages.length - 1].content = assistantResponse;
+                  // If exporting, hide the raw JSON from the UI
+                  if (isExporting) {
+                    const visibleText = assistantResponse.split('EXPORT_EXCEL:')[0];
+                    newMessages[newMessages.length - 1].content = visibleText + "\n\n📊 *Generating Excel report...*";
+                  } else {
+                    newMessages[newMessages.length - 1].content = assistantResponse;
+                  }
                   return newMessages;
                 });
               } else if (data.type === 'error') {

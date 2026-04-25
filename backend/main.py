@@ -4,6 +4,12 @@ import asyncio
 import json
 import random
 from datetime import datetime
+from dotenv import load_dotenv
+import os
+
+# Load environment variables from .env file
+env_path = os.path.join(os.path.dirname(__file__), '.env')
+load_dotenv(dotenv_path=env_path)
 
 from auth.router import router as auth_router
 from users.router import router as users_router
@@ -62,8 +68,8 @@ async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
         while True:
-            # Generate a new mock alert every 5 seconds
-            await asyncio.sleep(5)
+            # Generate a new mock alert every 2 seconds for a more dynamic feel
+            await asyncio.sleep(2)
             user_id = random.choice(list(MOCK_USERS.keys()))
             severities = ['low', 'medium', 'high', 'critical']
             

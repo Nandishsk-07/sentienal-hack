@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Bell, ShieldAlert, CheckCircle, Clock } from 'lucide-react';
 import clsx from 'clsx';
+import { API_BASE_URL } from '../apiConfig';
 
 const MyNotifications = () => {
   const [notifications, setNotifications] = useState([]);
@@ -14,7 +15,7 @@ const MyNotifications = () => {
   const fetchNotifs = async () => {
     try {
       const token = localStorage.getItem('sentinel_access_token');
-      const res = await axios.get('http://127.0.0.1:8000/notifications', {
+      const res = await axios.get(`${API_BASE_URL}/notifications`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setNotifications(res.data);
@@ -26,7 +27,7 @@ const MyNotifications = () => {
   const markRead = async (id) => {
     try {
       const token = localStorage.getItem('sentinel_access_token');
-      await axios.patch(`http://127.0.0.1:8000/notifications/${id}/read`, {}, {
+      await axios.patch(`${API_BASE_URL}/notifications/${id}/read`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       fetchNotifs();

@@ -4,6 +4,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { toast, Toaster } from 'react-hot-toast';
+import { API_BASE_URL } from '../apiConfig';
 
 const NotificationBell = () => {
   const [notifications, setNotifications] = useState([]);
@@ -15,7 +16,7 @@ const NotificationBell = () => {
     try {
       const token = localStorage.getItem('sentinel_access_token');
       if (!token) return;
-      const res = await axios.get('http://127.0.0.1:8000/notifications', {
+      const res = await axios.get(`${API_BASE_URL}/notifications`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setNotifications(res.data);

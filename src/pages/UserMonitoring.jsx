@@ -11,6 +11,7 @@ import {
 import clsx from 'clsx';
 import { useAuth } from '../contexts/AuthContext';
 import { collectDeviceFingerprint } from '../utils/deviceFingerprint';
+import { API_BASE_URL } from '../apiConfig';
 
 /* ─── helpers ─── */
 const riskColor = (score) =>
@@ -80,7 +81,7 @@ const UserDetailPanel = ({ user, transactions, onClose }) => {
   useEffect(() => {
     const token = localStorage.getItem('sentinel_token');
     if (token) {
-      axios.get(`http://127.0.0.1:8000/devices/${user.user_id}`, {
+      axios.get(`${API_BASE_URL}/devices/${user.user_id}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       .then(res => setDevices(res.data))
@@ -91,7 +92,7 @@ const UserDetailPanel = ({ user, transactions, onClose }) => {
   const removeDevice = (deviceId) => {
     const token = localStorage.getItem('sentinel_token');
     if (token) {
-      axios.delete(`http://127.0.0.1:8000/devices/${deviceId}`, {
+      axios.delete(`${API_BASE_URL}/devices/${deviceId}`, {
         headers: { Authorization: `Bearer ${token}` }
       }).then(() => {
         setDevices(prev => prev.filter(d => d.deviceId !== deviceId));
@@ -285,7 +286,7 @@ const DeviceSecurityPanel = ({ userId, devices, riskScore }) => {
       if (spoofMode) {
         fp = { ...fp, deviceId: `FP-UNKNOWN-${Math.random().toString(16).slice(2, 10)}` };
       }
-      const res = await axios.post('http://127.0.0.1:8000/devices/verify', {
+      const res = await axios.post(`${API_BASE_URL}/devices/verify`, {
         user_id: userId,
         fingerprint: fp
       }, { headers: { Authorization: `Bearer ${token}` } });
@@ -396,7 +397,7 @@ const UserMonitoring = () => {
   const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
-    axios.get('http://127.0.0.1:8000/users/risk-scores')
+    axios.get(`${API_BASE_URL}/users/risk-scores`)
       .then(res => { setUsers(res.data); setLoading(false); })
       .catch(err => { console.error(err); setLoading(false); });
   }, []);
@@ -404,7 +405,7 @@ const UserMonitoring = () => {
   const openProfile = async (user) => {
     setSelectedUser(user);
     try {
-      const res = await axios.get(`http://127.0.0.1:8000/users/${user.user_id}/transactions`);
+      const res = await axios.get(`${API_BASE_URL}/users/${user.user_id}/transactions`);
       setTransactions(res.data);
     } catch {
       setTransactions([]);

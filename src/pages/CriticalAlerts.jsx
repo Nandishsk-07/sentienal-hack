@@ -10,6 +10,7 @@ import {
   Zap, Bell, FileText, Send, TrendingUp, Activity
 } from 'lucide-react';
 import clsx from 'clsx';
+import { API_BASE_URL, WS_BASE_URL } from '../apiConfig';
 
 /* ─── helpers ─── */
 const severityConfig = {
@@ -262,12 +263,12 @@ const CriticalAlerts = () => {
   const [wsAlerts, setWsAlerts] = useState([]);
 
   useEffect(() => {
-    axios.get('http://127.0.0.1:8000/alerts')
+    axios.get(`${API_BASE_URL}/alerts`)
       .then(res => { setAlerts(res.data); setLoading(false); })
       .catch(err => { console.error(err); setLoading(false); });
 
     // Live WebSocket feed
-    const ws = new WebSocket('ws://127.0.0.1:8000/ws/alerts');
+    const ws = new WebSocket(WS_BASE_URL);
     ws.onmessage = (event) => {
       const a = JSON.parse(event.data);
       setWsAlerts(prev => [a, ...prev].slice(0, 5));
@@ -278,7 +279,7 @@ const CriticalAlerts = () => {
 
   const handleFeedback = async (alertId, verdict, notes) => {
     try {
-      await axios.post(`http://127.0.0.1:8000/alerts/${alertId}/feedback`, { verdict, notes });
+      await axios.post(`${API_BASE_URL}/alerts/${alertId}/feedback`, { verdict, notes });
       setAlerts(prev => prev.map(a =>
         a.id === alertId
           ? { ...a, status: verdict !== 'UNDER_REVIEW' ? 'resolved' : 'open', investigator_notes: `[${verdict}] ${notes}` }

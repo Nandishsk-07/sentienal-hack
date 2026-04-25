@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldCheck, Server, AlertTriangle, Key, Clock, Fingerprint, Database, CheckCircle2, XCircle } from 'lucide-react';
 import axios from 'axios';
+import { API_BASE_URL } from '../apiConfig';
 
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = API_BASE_URL;
 
 const BlockchainLog = () => {
   const [chain, setChain] = useState([]);

@@ -8,6 +8,7 @@ import { ShieldAlert, Users, Activity, ScanLine, Eye, AlertTriangle, Shield, Loc
 import clsx from 'clsx';
 import { useAuth } from '../contexts/AuthContext';
 import { collectDeviceFingerprint } from '../utils/deviceFingerprint';
+import { API_BASE_URL, WS_BASE_URL } from '../apiConfig';
 
 // --- MOCK DATA ---
 const alertVolumeData = [
@@ -84,7 +85,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     // 1. Fetch initial Leaderboard & Risk Data
-    axios.get('http://127.0.0.1:8000/users/risk-scores')
+    axios.get(`${API_BASE_URL}/users/risk-scores`)
       .then(res => {
         const users = res.data;
         // Sort descending by score for leaderboard
@@ -118,7 +119,7 @@ const Dashboard = () => {
       .catch(console.error);
 
     // 2. Fetch Initial Alerts Timeline
-    axios.get('http://127.0.0.1:8000/alerts')
+    axios.get(`${API_BASE_URL}/alerts`)
       .then(res => {
         setLiveAlerts(res.data.slice(0, 10).map(a => ({
           id: a.id,
@@ -131,7 +132,7 @@ const Dashboard = () => {
       .catch(console.error);
 
     // 3. Connect WebSocket for Live Alerts Feed
-    const ws = new WebSocket('ws://127.0.0.1:8000/ws/alerts');
+    const ws = new WebSocket(WS_BASE_URL);
     ws.onmessage = (event) => {
       const a = JSON.parse(event.data);
       const newAlert = {
@@ -154,7 +155,7 @@ const Dashboard = () => {
   // Fetch suspended accounts for BRANCH_MANAGER
   useEffect(() => {
     if (user?.role === 'BRANCH_MANAGER') {
-      axios.get('http://127.0.0.1:8000/users/suspensions')
+      axios.get(`${API_BASE_URL}/users/suspensions`)
         .then(res => setSuspendedAccounts(res.data))
         .catch(console.error);
     }
@@ -163,7 +164,7 @@ const Dashboard = () => {
   const handleRestore = async (userId) => {
     if (!restoreReason.trim()) return;
     try {
-      await axios.post(`http://127.0.0.1:8000/users/${userId}/restore-access`, { reason: restoreReason });
+      await axios.post(`${API_BASE_URL}/users/${userId}/restore-access`, { reason: restoreReason });
       setSuspendedAccounts(prev => prev.filter(s => s.user_id !== userId));
       setRestoreModal(null);
       setRestoreReason('');
@@ -182,7 +183,7 @@ const Dashboard = () => {
       } else if (type === 'unknown') {
         spoofed.deviceId = `FP-UNKNOWN-${Math.random().toString(16).slice(2, 10)}`;
       }
-      await axios.post('http://127.0.0.1:8000/auth/login', {
+      await axios.post(`${API_BASE_URL}/auth/login`, {
         username: 'USR-001B', password: 'test', role: 'FRAUD_INVESTIGATOR',
         deviceFingerprint: spoofed
       });
@@ -191,7 +192,7 @@ const Dashboard = () => {
       if (err.response?.status === 403) {
         setDemoStatus(`🚨 ${type} — ACCOUNT FROZEN! (403)`);
         // Refresh suspended list
-        axios.get('http://127.0.0.1:8000/users/suspensions')
+        axios.get(`${API_BASE_URL}/users/suspensions`)
           .then(res => setSuspendedAccounts(res.data)).catch(() => {});
       } else {
         setDemoStatus(`❌ ${type} — Error: ${err.message}`);
