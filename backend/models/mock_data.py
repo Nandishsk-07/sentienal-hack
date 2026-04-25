@@ -8,12 +8,13 @@ statuses = ['Active', 'Watchlist', 'Suspended']
 
 for i in range(1, 21):
     uid = f"USR-{str(i).zfill(3)}{chr(65 + (i % 26))}"
+    risk_score = round(random.uniform(10.0, 99.9), 1)
     MOCK_USERS[uid] = {
         "user_id": uid,
         "department": random.choice(departments),
-        "risk_score": round(random.uniform(10.0, 99.9), 1),
+        "risk_score": risk_score,
         "anomaly_count": random.randint(0, 15),
-        "status": random.choice(statuses) if i % 4 == 0 else 'Active',
+        "status": 'Suspended' if risk_score > 70 else (random.choice(['Active', 'Watchlist']) if i % 4 == 0 else 'Active'),
         "last_active": (datetime.now() - timedelta(minutes=random.randint(1, 1440))).strftime("%Y-%m-%d %H:%M:%S")
     }
 
@@ -88,10 +89,16 @@ for idx, uid in enumerate(list(MOCK_USERS.keys())):
             "login_count": random.randint(10, 100),
             "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             "timezone": "Asia/Kolkata",
-            "screen": "1920x1080"
+            "screen": "1920x1080",
+            "platform": "Win32",
+            "cores": 8,
+            "memory": 8,
+            "language": "en-US"
         })
     DEVICE_REGISTRY[uid] = devices
 
 # Mock Notifications
 MOCK_NOTIFICATIONS = []
 
+# Mock Suspension Log
+SUSPENSION_LOG = []

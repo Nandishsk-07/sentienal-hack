@@ -8,7 +8,7 @@ from datetime import datetime
 router = APIRouter()
 
 def check_device_trust(user_id: str, fingerprint):
-    from models.mock_data import DEVICE_REGISTRY, MOCK_ALERTS, MOCK_USERS
+    from models.mock_data import DEVICE_REGISTRY, MOCK_ALERTS, MOCK_USERS, SUSPENSION_LOG
     from notifications.router import create_notification
     import random
     from datetime import datetime
@@ -27,72 +27,109 @@ def check_device_trust(user_id: str, fingerprint):
             "investigator_notes": None
         })
         
-    def add_risk(amt):
+    def freeze_account(reason, mismatches, attempted_deviceId):
         usr = MOCK_USERS.get(user_id)
         if usr:
-            usr['risk_score'] = min(usr['risk_score'] + amt, 100.0)
+            usr['status'] = 'Suspended'
+        
+        ip_addr = getattr(fingerprint, 'ipAddress', '192.168.1.x') if fingerprint else 'unknown'
+        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Fire CRITICAL alert
+        trigger_alert("DEVICE_SECURITY_VIOLATION", "critical", 
+            f"Account auto-suspended. Reason: {reason}. "
+            f"Attempted device: {attempted_deviceId}, "
+            f"Mismatch fields: {mismatches}, "
+            f"Timestamp: {now_str}, "
+            f"IP attempted: {ip_addr}"
+        )
+        
+        # Send notification to user
+        create_notification(user_id, "ACCOUNT_SUSPENDED", "CRITICAL", 
+            f"Your account has been SUSPENDED due to login from an unrecognized or mismatched device. "
+            f"Attempted at: {now_str}. "
+            f"If this was you, contact your branch manager immediately to restore access. "
+            f"Dial 1800-XXX-XXXX for emergency support."
+        )
+        
+        # Alert branch manager
+        create_notification("all_branch_managers", "URGENT_SUSPENSION", "CRITICAL", 
+            f"URGENT: Account {user_id} has been AUTO-SUSPENDED due to device security violation at {now_str}. "
+            f"Immediate review required."
+        )
+        
+        # Log suspension
+        SUSPENSION_LOG.insert(0, {
+            "user_id": user_id,
+            "attempted_deviceId": attempted_deviceId,
+            "timestamp": now_str,
+            "ip_address": ip_addr,
+            "freeze_reason": reason,
+            "mismatch_fields": mismatches
+        })
 
     try:
-        # SCENARIO 1: collectionFailed Frontend
-        if fingerprint and fingerprint.collectionFailed:
-            add_risk(25)
-            reason = fingerprint.failureReason or "Unknown collection error"
-            msg = f"Device fingerprinting could not be completed during your login. This may indicate a privacy tool, browser restriction, or tampering attempt. Reason: {reason}. If this was not you, contact your branch manager immediately."
-            create_notification(user_id, "DEVICE_ALERT", "CRITICAL", msg)
-            trigger_alert("FINGERPRINT_COLLECTION_FAILED", "high", "Login detected with explicit frontend fingerprint collection failure.")
-            return 0, False, 25, "Collection failed", "FAILED"
+        user_profile = MOCK_USERS.get(user_id, {})
+        risk_score = user_profile.get('risk_score', 0)
 
-        # SCENARIO 2: Malformed Fingerprint ID
-        if not fingerprint or not fingerprint.deviceId or not fingerprint.deviceId.startswith("FP-"):
-            add_risk(30)
-            msg = "A malformed device signature was detected during your login attempt. This may indicate tampering or an automated attack. Your account has been flagged for immediate security review."
-            create_notification(user_id, "DEVICE_ALERT", "CRITICAL", msg)
-            trigger_alert("FINGERPRINT_MALFORMED", "critical", "Login detected containing a malformed deviceId signature.")
-            return 0, False, 30, "Malformed device signature", "MALFORMED"
+        if not fingerprint:
+            if risk_score > 70:
+                freeze_account("NO_FINGERPRINT_DATA", ["fingerprint"], "unknown")
+                return 0, False, 100, "No fingerprint data", "FAILED"
+            return 2, True, 0, "No fingerprint data - Trusted due to low risk", "TRUSTED"
 
-        usr = MOCK_USERS.get(user_id)
-        if usr and usr.get("status") == "Active" and usr.get("risk_score", 100) < 60:
-            # Auto-enroll Safe User's deterministic fingerprint so it organically verifies as TRUSTED
-            has_match = any(d["deviceId"] == fingerprint.deviceId for d in user_devices)
-            if not has_match:
-                user_devices.append({
-                    "deviceId": fingerprint.deviceId,
-                    "user_id": user_id,
-                    "first_seen": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "last_seen": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "trust_level": 2,
-                    "is_registered": True,
-                    "login_count": 42,
-                    "userAgent": fingerprint.userAgent,
-                    "timezone": fingerprint.timezone,
-                    "screen": getattr(fingerprint, 'screen', '1920x1080')
-                })
-                DEVICE_REGISTRY[user_id] = user_devices
+        if getattr(fingerprint, 'collectionFailed', False):
+            if risk_score > 70:
+                freeze_account("FINGERPRINT_COLLECTION_FAILED", ["collectionFailed"], getattr(fingerprint, 'deviceId', 'unknown'))
+                return 0, False, 100, "Collection failed", "FAILED"
+            return 2, True, 0, "Collection failed - Trusted due to low risk", "TRUSTED"
 
-        # Exact match
-        for d in user_devices:
-            if d["deviceId"] == fingerprint.deviceId:
-                return 2, True, -10, "Trusted device fully matched.", "TRUSTED"
-                
-        # Partial match
-        for d in user_devices:
-            if d["userAgent"] == fingerprint.userAgent and d["timezone"] == fingerprint.timezone:
-                return 1, False, 10, "Partial match: Device fingerprint changed but OS/Environment matches.", "PARTIAL"
-                
-        # SCENARIO 4: Unknown Device
-        add_risk(25)
-        msg = f"A login was attempted on your account from an unregistered device. Device ID: {fingerprint.deviceId}, Timezone: {fingerprint.timezone}, Platform: {fingerprint.platform}. If this was not you, contact your branch manager immediately."
-        create_notification(user_id, "DEVICE_ALERT", "CRITICAL", msg)
-        trigger_alert("UNKNOWN_DEVICE_LOGIN", "high", f"Unregistered device login ({fingerprint.deviceId}).")
-        return 0, False, 25, "Untrusted device: Unknown fingerprint.", "UNKNOWN"
+        if not fingerprint.deviceId or not fingerprint.deviceId.startswith("FP-"):
+            if risk_score > 70:
+                freeze_account("MALFORMED_DATA", ["deviceId"], getattr(fingerprint, 'deviceId', 'unknown'))
+                return 0, False, 100, "Malformed device signature", "FAILED"
+            return 2, True, 0, "Malformed data - Trusted due to low risk", "TRUSTED"
+
+        if not user_devices:
+            if risk_score > 70:
+                freeze_account("NO_REGISTERED_DEVICES", ["deviceId"], fingerprint.deviceId)
+                return 0, False, 100, "No registered devices", "FAILED"
+            return 2, True, 0, "New device - Trusted due to low risk", "TRUSTED"
+
+        # Find registered device
+        registered_device = next((d for d in user_devices if d["deviceId"] == fingerprint.deviceId), None)
+
+        if not registered_device:
+            if risk_score > 70:
+                freeze_account("UNKNOWN_DEVICE", ["deviceId"], fingerprint.deviceId)
+                return 0, False, 100, "Unknown device", "FAILED"
+            return 2, True, 0, "Unknown device - Trusted due to low risk", "TRUSTED"
+
+        # STRICT BINARY CHECK
+        mismatches = []
+        if registered_device.get('screen') != getattr(fingerprint, 'screen', None): mismatches.append("screen")
+        if registered_device.get('timezone') != getattr(fingerprint, 'timezone', None): mismatches.append("timezone")
+        if registered_device.get('platform') != getattr(fingerprint, 'platform', None): mismatches.append("platform")
+        if registered_device.get('cores') != getattr(fingerprint, 'cores', None): mismatches.append("cores")
+        if registered_device.get('memory') != getattr(fingerprint, 'memory', None): mismatches.append("memory")
+        if registered_device.get('language') != getattr(fingerprint, 'language', None): mismatches.append("language")
+        if registered_device.get('userAgent') != getattr(fingerprint, 'userAgent', None): mismatches.append("userAgent")
+
+        if len(mismatches) > 0:
+            if risk_score > 70:
+                freeze_account("DEVICE_MISMATCH", mismatches, fingerprint.deviceId)
+                return 0, False, 100, f"Device mismatch: {', '.join(mismatches)}", "FAILED"
+            return 2, True, 0, f"Mismatch ({', '.join(mismatches)}) - Trusted due to low risk", "TRUSTED"
+
+        return 2, True, -10, "Trusted device fully matched.", "TRUSTED"
 
     except Exception as e:
-        # SCENARIO 3: Backend Verification Execution Error
-        add_risk(30)
-        msg = f"Device verification failed during your login attempt. Error: {str(e)}. Your account has been flagged for security review. Contact your branch manager if you did not attempt this login."
-        create_notification(user_id, "DEVICE_ALERT", "CRITICAL", msg)
-        trigger_alert("FINGERPRINT_VERIFICATION_FAILED", "high", "Execution error occurred while validating device fingerprint constraints.")
-        return 0, False, 30, f"Verification failed: {str(e)}", "FAILED"
+        user_profile = MOCK_USERS.get(user_id, {})
+        risk_score = user_profile.get('risk_score', 0)
+        if risk_score > 70:
+            freeze_account("FINGERPRINT_VERIFICATION_FAILED", ["exception"], getattr(fingerprint, 'deviceId', 'unknown'))
+            return 0, False, 100, f"Verification failed: {str(e)}", "FAILED"
+        return 2, True, 0, "Verification error - Trusted due to low risk", "TRUSTED"
 
 @router.get("/{user_id}", response_model=List[DeviceRecord])
 async def get_user_devices(user_id: str, current_user: TokenData = Depends(get_current_user)):

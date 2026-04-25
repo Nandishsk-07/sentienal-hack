@@ -10,7 +10,6 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('FRAUD_INVESTIGATOR');
   const [isLoading, setIsLoading] = useState(false);
-  const [simulateUnknown, setSimulateUnknown] = useState(false);
   const [error, setError] = useState('');
   const [fingerprint, setFingerprint] = useState(null);
   const { login } = useAuth();
@@ -43,13 +42,10 @@ const Login = () => {
     try {
       // Simulate network delay for effect
       await new Promise(resolve => setTimeout(resolve, 800));
-      const finalFingerprint = simulateUnknown 
-        ? { ...fingerprint, deviceId: `FP-UNKNOWN-${Math.random().toString(16).slice(2, 10)}` } 
-        : fingerprint;
-      await login(username, password, role, finalFingerprint);
+      await login(username, password, role, fingerprint);
       navigate('/dashboard');
     } catch (err) {
-      setError('Access Denied. Multi-factor authentication failed.');
+      setError(err.response?.data?.detail || 'Access Denied. Authentication failed.');
     } finally {
       setIsLoading(false);
     }
@@ -126,19 +122,6 @@ const Login = () => {
               <option value="BRANCH_MANAGER">Level 2 - Branch Manager</option>
               <option value="HEAD">Level 3 - Head of Security</option>
             </select>
-          </div>
-
-          <div className="flex items-center gap-3 mt-4 p-3 rounded-lg bg-danger/5 border border-danger/20 hover:border-danger/40 transition-colors">
-            <input 
-              type="checkbox" 
-              id="sim-unknown" 
-              checked={simulateUnknown} 
-              onChange={(e) => setSimulateUnknown(e.target.checked)}
-              className="w-4 h-4 bg-background border border-muted rounded focus:ring-danger focus:ring-1 accent-danger cursor-pointer" 
-            />
-            <label htmlFor="sim-unknown" className="text-xs font-bold text-gray-300 uppercase tracking-widest cursor-pointer select-none">
-              [DEMO] SPOOF FINGERPRINT AS UNTRUSTED
-            </label>
           </div>
 
           <button

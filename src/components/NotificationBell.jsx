@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, ShieldAlert } from 'lucide-react';
+import { Bell, ShieldAlert, AlertTriangle, X } from 'lucide-react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
@@ -8,6 +8,7 @@ import { toast, Toaster } from 'react-hot-toast';
 const NotificationBell = () => {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [criticalModal, setCriticalModal] = useState(null);
   const navigate = useNavigate();
 
   const fetchNotifs = async () => {
@@ -34,8 +35,6 @@ const NotificationBell = () => {
   useEffect(() => {
     const unread = notifications.filter(n => !n.is_read && n.type === 'DEVICE_ALERT');
     if (unread.length > 0) {
-      // Just showing a toast for the first unread we see to emulate realtime ping
-      // Usually would be handled via websocket, but polling works for mock
       const latest = unread[0];
       if (!localStorage.getItem(`toast_${latest.id}`)) {
         toast('🚨 Security Alert: Unusual device activity detected on your account', {
@@ -46,6 +45,27 @@ const NotificationBell = () => {
       }
     }
   }, [notifications]);
+
+  // Full screen modal for ACCOUNT_SUSPENDED or URGENT_SUSPENSION
+  useEffect(() => {
+    const criticals = notifications.filter(
+      n => !n.is_read && (n.type === 'ACCOUNT_SUSPENDED' || n.type === 'URGENT_SUSPENSION')
+    );
+    if (criticals.length > 0 && !criticalModal) {
+      const latest = criticals[0];
+      if (!localStorage.getItem(`critical_modal_${latest.id}`)) {
+        setCriticalModal(latest);
+      }
+    }
+  }, [notifications, criticalModal]);
+
+  const dismissCritical = () => {
+    if (criticalModal) {
+      localStorage.setItem(`critical_modal_${criticalModal.id}`, 'true');
+      setCriticalModal(null);
+      navigate('/alerts');
+    }
+  };
 
   const hasCritical = notifications.some(n => !n.is_read && n.severity === 'CRITICAL');
 
@@ -66,6 +86,64 @@ const NotificationBell = () => {
           </span>
         )}
       </button>
+
+      {/* === CRITICAL FULL SCREEN MODAL === */}
+      {criticalModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+          <div 
+            className="bg-[#0D1117] border-2 border-[#FF3B3B] rounded-2xl w-full max-w-lg shadow-[0_0_60px_rgba(255,59,59,0.4)] overflow-hidden"
+            style={{ animation: 'critical-pulse 2s ease-in-out infinite, scale-in 0.3s ease-out' }}
+          >
+            {/* Pulsing Red Top Bar */}
+            <div className="h-1.5 bg-[#FF3B3B] animate-pulse" />
+
+            <div className="p-8 text-center">
+              {/* Icon */}
+              <div className="w-20 h-20 mx-auto mb-6 bg-[#FF3B3B]/20 border-2 border-[#FF3B3B] rounded-full flex items-center justify-center shadow-[0_0_40px_rgba(255,59,59,0.5)] animate-pulse">
+                <AlertTriangle className="w-10 h-10 text-[#FF3B3B]" />
+              </div>
+
+              <h2 className="text-2xl font-extrabold text-[#FF3B3B] uppercase tracking-widest mb-4 drop-shadow-[0_0_10px_rgba(255,59,59,0.8)]">
+                🚨 CRITICAL
+              </h2>
+
+              <p className="text-lg font-bold text-white mb-2">
+                {criticalModal.type === 'ACCOUNT_SUSPENDED' 
+                  ? 'Account Auto-Suspended' 
+                  : 'Urgent Suspension Alert'}
+              </p>
+
+              <div className="bg-black/50 rounded-xl border border-[#FF3B3B]/20 p-4 mb-6 text-left">
+                <p className="text-sm text-gray-300 leading-relaxed">
+                  {criticalModal.message}
+                </p>
+              </div>
+
+              <p className="text-xs text-gray-500 mb-6">
+                This notification cannot be dismissed without acknowledgment.
+              </p>
+
+              <button
+                onClick={dismissCritical}
+                className="w-full py-4 bg-[#FF3B3B]/20 hover:bg-[#FF3B3B]/30 border-2 border-[#FF3B3B] text-[#FF3B3B] font-bold text-sm uppercase tracking-widest rounded-xl transition-all shadow-[0_0_20px_rgba(255,59,59,0.3)] hover:shadow-[0_0_30px_rgba(255,59,59,0.5)]"
+              >
+                I Understand — Review Now
+              </button>
+            </div>
+          </div>
+
+          <style>{`
+            @keyframes critical-pulse {
+              0%, 100% { box-shadow: 0 0 30px rgba(255,59,59,0.3); }
+              50% { box-shadow: 0 0 60px rgba(255,59,59,0.6); }
+            }
+            @keyframes scale-in {
+              from { opacity: 0; transform: scale(0.9); }
+              to { opacity: 1; transform: scale(1); }
+            }
+          `}</style>
+        </div>
+      )}
     </div>
   );
 };

@@ -4,8 +4,10 @@ import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, 
   BarChart, Bar, Cell 
 } from 'recharts';
-import { ShieldAlert, Users, Activity, ScanLine, Eye, AlertTriangle, Shield } from 'lucide-react';
+import { ShieldAlert, Users, Activity, ScanLine, Eye, AlertTriangle, Shield, Lock, Unlock, X, Zap, Monitor, Clock as ClockIcon } from 'lucide-react';
 import clsx from 'clsx';
+import { useAuth } from '../contexts/AuthContext';
+import { collectDeviceFingerprint } from '../utils/deviceFingerprint';
 
 // --- MOCK DATA ---
 const alertVolumeData = [
@@ -71,9 +73,14 @@ const AnimatedCounter = ({ end, duration = 1000 }) => {
 };
 
 const Dashboard = () => {
+  const { user } = useAuth();
   const [leaderboardData, setLeaderboardData] = useState([]);
   const [riskDistributionData, setRiskDistributionData] = useState([]);
   const [liveAlerts, setLiveAlerts] = useState([]);
+  const [suspendedAccounts, setSuspendedAccounts] = useState([]);
+  const [restoreModal, setRestoreModal] = useState(null);
+  const [restoreReason, setRestoreReason] = useState('');
+  const [demoStatus, setDemoStatus] = useState('');
 
   useEffect(() => {
     // 1. Fetch initial Leaderboard & Risk Data
@@ -91,14 +98,13 @@ const Dashboard = () => {
           lastAnomaly: u.last_active, // Use last_active as proxy
           status: u.status,
           // Extract trust logic
-          lastDeviceTrust: u.risk_score >= 90 ? 0 : u.risk_score >= 70 ? 1 : 2
+          lastDeviceTrust: u.risk_score > 70 ? 0 : 2
         })));
         
         // Build the Risk Distribution mathematically
-        let low = 0, med = 0, high = 0, crit = 0;
+        let low = 0, med = 0, crit = 0;
         users.forEach(u => {
-          if (u.risk_score >= 90) crit++;
-          else if (u.risk_score >= 80) high++;
+          if (u.risk_score > 70) crit++;
           else if (u.risk_score >= 50) med++;
           else low++;
         });
@@ -106,7 +112,6 @@ const Dashboard = () => {
         setRiskDistributionData([
           { name: 'Low', value: low, color: '#3B82F6' },
           { name: 'Medium', value: med, color: '#F59E0B' },
-          { name: 'High', value: high, color: '#F97316' },
           { name: 'Critical', value: crit, color: '#FF3B3B' },
         ]);
       })
@@ -145,6 +150,55 @@ const Dashboard = () => {
 
     return () => ws.close(); // Cleanup
   }, []);
+
+  // Fetch suspended accounts for BRANCH_MANAGER
+  useEffect(() => {
+    if (user?.role === 'BRANCH_MANAGER') {
+      axios.get('http://127.0.0.1:8000/users/suspensions')
+        .then(res => setSuspendedAccounts(res.data))
+        .catch(console.error);
+    }
+  }, [user]);
+
+  const handleRestore = async (userId) => {
+    if (!restoreReason.trim()) return;
+    try {
+      await axios.post(`http://127.0.0.1:8000/users/${userId}/restore-access`, { reason: restoreReason });
+      setSuspendedAccounts(prev => prev.filter(s => s.user_id !== userId));
+      setRestoreModal(null);
+      setRestoreReason('');
+    } catch (err) { console.error(err); }
+  };
+
+  const simulateDeviceMismatch = async (type) => {
+    setDemoStatus(`Simulating ${type}...`);
+    try {
+      const fp = collectDeviceFingerprint();
+      let spoofed = { ...fp };
+      if (type === 'screen') {
+        spoofed.screen = '1366x768';
+      } else if (type === 'timezone') {
+        spoofed.timezone = 'Europe/London';
+      } else if (type === 'unknown') {
+        spoofed.deviceId = `FP-UNKNOWN-${Math.random().toString(16).slice(2, 10)}`;
+      }
+      await axios.post('http://127.0.0.1:8000/auth/login', {
+        username: 'USR-001B', password: 'test', role: 'FRAUD_INVESTIGATOR',
+        deviceFingerprint: spoofed
+      });
+      setDemoStatus(`✅ ${type} — Login allowed (unexpected)`);
+    } catch (err) {
+      if (err.response?.status === 403) {
+        setDemoStatus(`🚨 ${type} — ACCOUNT FROZEN! (403)`);
+        // Refresh suspended list
+        axios.get('http://127.0.0.1:8000/users/suspensions')
+          .then(res => setSuspendedAccounts(res.data)).catch(() => {});
+      } else {
+        setDemoStatus(`❌ ${type} — Error: ${err.message}`);
+      }
+    }
+    setTimeout(() => setDemoStatus(''), 5000);
+  };
 
   return (
     <div className="min-h-screen bg-[#0A0E1A] p-6 lg:p-8 text-white relative font-sans overflow-x-hidden">
@@ -284,8 +338,7 @@ const Dashboard = () => {
                         <td className="p-4">
                           <span className={clsx(
                             "px-2 py-1 rounded text-xs font-bold font-mono",
-                            user.score >= 90 ? "bg-[#FF3B3B]/20 text-[#FF3B3B] border border-[#FF3B3B]/50" :
-                            user.score >= 80 ? "bg-[#F97316]/20 text-[#F97316] border border-[#F97316]/50" :
+                            user.score > 70 ? "bg-[#FF3B3B]/20 text-[#FF3B3B] border border-[#FF3B3B]/50" :
                             "bg-primary/20 text-primary border border-primary/50"
                           )}>
                             {user.score}/100
@@ -387,6 +440,128 @@ const Dashboard = () => {
               </div>
             </div>
 
+            {/* === AUTO-SUSPENDED ACCOUNTS (BRANCH_MANAGER ONLY) === */}
+            {user?.role === 'BRANCH_MANAGER' && (
+              <div className="glass-panel rounded-xl border-2 border-[#FF3B3B]/40 overflow-hidden text-sm shadow-[0_0_20px_rgba(255,59,59,0.1)]">
+                <div className="p-5 border-b border-[#FF3B3B]/20 bg-[#FF3B3B]/5 flex justify-between items-center">
+                  <h3 className="font-bold text-[#FF3B3B] uppercase tracking-widest flex items-center gap-2">
+                    <Lock className="w-4 h-4" />
+                    Auto-Suspended Accounts
+                  </h3>
+                  <span className="text-[10px] bg-[#FF3B3B] text-white px-2 py-1 rounded font-bold uppercase tracking-wider animate-pulse">
+                    {suspendedAccounts.length} Suspended
+                  </span>
+                </div>
+                {suspendedAccounts.length === 0 ? (
+                  <div className="p-8 text-center text-gray-500">
+                    <Shield className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                    <p className="text-xs">No auto-suspended accounts</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-[#FF3B3B]/5 uppercase text-xs tracking-wider text-[#FF3B3B]/70 border-b border-[#FF3B3B]/20">
+                          <th className="p-4 font-medium">User ID</th>
+                          <th className="p-4 font-medium">Suspension Time</th>
+                          <th className="p-4 font-medium">Reason</th>
+                          <th className="p-4 font-medium">Mismatch Fields</th>
+                          <th className="p-4 font-medium">Attempted Device</th>
+                          <th className="p-4 font-medium">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#FF3B3B]/10">
+                        {suspendedAccounts.map((s, idx) => (
+                          <tr key={idx} className="hover:bg-[#FF3B3B]/5 transition-colors">
+                            <td className="p-4 font-mono font-bold text-white">{s.user_id}</td>
+                            <td className="p-4 text-gray-400 font-mono text-xs">{s.timestamp}</td>
+                            <td className="p-4">
+                              <span className="px-2 py-1 rounded text-[10px] font-bold bg-[#FF3B3B]/20 text-[#FF3B3B] border border-[#FF3B3B]/30">
+                                {s.freeze_reason}
+                              </span>
+                            </td>
+                            <td className="p-4">
+                              <div className="flex flex-wrap gap-1">
+                                {(s.mismatch_fields || []).map((f, fi) => (
+                                  <span key={fi} className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-[#F59E0B]/10 text-[#F59E0B] border border-[#F59E0B]/30">
+                                    {f}
+                                  </span>
+                                ))}
+                              </div>
+                            </td>
+                            <td className="p-4 font-mono text-xs text-gray-400">{s.attempted_deviceId}</td>
+                            <td className="p-4">
+                              <button
+                                onClick={() => setRestoreModal(s)}
+                                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#00FFD1]/10 hover:bg-[#00FFD1]/20 border border-[#00FFD1]/40 hover:border-[#00FFD1] text-[#00FFD1] text-xs font-bold uppercase tracking-wider transition-all"
+                              >
+                                <Unlock className="w-3 h-3" /> Restore
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* === SECURITY DEMO PANEL === */}
+            <div className="glass-panel rounded-xl border border-[#FF3B3B]/30 overflow-hidden">
+              <div className="p-5 border-b border-[#FF3B3B]/20 bg-[#FF3B3B]/5">
+                <h3 className="font-bold text-[#FF3B3B] uppercase tracking-widest flex items-center gap-2 text-sm">
+                  <Zap className="w-4 h-4" />
+                  Security Demo — Zero Tolerance Mode
+                </h3>
+                <p className="text-[10px] text-gray-500 mt-1">For judge demonstration only. Each button triggers an immediate account freeze.</p>
+              </div>
+              <div className="p-5 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <button
+                    onClick={() => simulateDeviceMismatch('screen')}
+                    className="p-4 rounded-lg bg-[#FF3B3B]/10 hover:bg-[#FF3B3B]/20 border border-[#FF3B3B]/30 hover:border-[#FF3B3B] text-[#FF3B3B] transition-all text-left group"
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <Monitor className="w-4 h-4" />
+                      <span className="text-xs font-bold uppercase tracking-wider">Simulate Screen Mismatch</span>
+                    </div>
+                    <p className="text-[10px] text-gray-500">Sends same deviceId but different screen resolution → Immediate Freeze</p>
+                  </button>
+                  <button
+                    onClick={() => simulateDeviceMismatch('timezone')}
+                    className="p-4 rounded-lg bg-[#FF3B3B]/10 hover:bg-[#FF3B3B]/20 border border-[#FF3B3B]/30 hover:border-[#FF3B3B] text-[#FF3B3B] transition-all text-left group"
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <ClockIcon className="w-4 h-4" />
+                      <span className="text-xs font-bold uppercase tracking-wider">Simulate Timezone Change</span>
+                    </div>
+                    <p className="text-[10px] text-gray-500">Sends same deviceId but timezone = Europe/London → Immediate Freeze</p>
+                  </button>
+                  <button
+                    onClick={() => simulateDeviceMismatch('unknown')}
+                    className="p-4 rounded-lg bg-[#FF3B3B]/10 hover:bg-[#FF3B3B]/20 border border-[#FF3B3B]/30 hover:border-[#FF3B3B] text-[#FF3B3B] transition-all text-left group"
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <ShieldAlert className="w-4 h-4" />
+                      <span className="text-xs font-bold uppercase tracking-wider">Simulate Unknown Device</span>
+                    </div>
+                    <p className="text-[10px] text-gray-500">Sends completely new deviceId → Immediate Freeze</p>
+                  </button>
+                </div>
+                {demoStatus && (
+                  <div className={clsx(
+                    "p-3 rounded-lg border text-sm font-mono text-center animate-pulse",
+                    demoStatus.includes('FROZEN') ? "bg-[#FF3B3B]/10 border-[#FF3B3B]/40 text-[#FF3B3B]" :
+                    demoStatus.includes('✅') ? "bg-[#00FFD1]/10 border-[#00FFD1]/40 text-[#00FFD1]" :
+                    "bg-[#F59E0B]/10 border-[#F59E0B]/40 text-[#F59E0B]"
+                  )}>
+                    {demoStatus}
+                  </div>
+                )}
+              </div>
+            </div>
+
           </div>
 
           {/* Right Column (Live Feed) */}
@@ -448,6 +623,58 @@ const Dashboard = () => {
         </div>
       </div>
 
+      {/* === RESTORE ACCESS MODAL === */}
+      {restoreModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setRestoreModal(null)}>
+          <div className="bg-[#0D1117] border border-[#00FFD1]/30 rounded-2xl w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()} style={{ animation: 'scale-in 0.25s ease-out' }}>
+            <div className="p-6 border-b border-white/10 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <Unlock className="w-5 h-5 text-[#00FFD1]" />
+                Restore Access
+              </h2>
+              <button onClick={() => setRestoreModal(null)} className="p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="glass-panel p-4 rounded-xl border border-[#FF3B3B]/20 bg-[#FF3B3B]/5">
+                <p className="text-sm text-gray-300 mb-2">Are you sure you want to restore access for <span className="text-white font-bold font-mono">{restoreModal.user_id}</span>?</p>
+                <p className="text-xs text-gray-500">Suspension reason: <span className="text-[#FF3B3B] font-bold">{restoreModal.freeze_reason}</span></p>
+                <p className="text-xs text-gray-500 mt-1">Mismatch detected in: <span className="text-[#F59E0B] font-mono">{(restoreModal.mismatch_fields || []).join(', ')}</span></p>
+              </div>
+              <div>
+                <label className="text-xs text-muted uppercase tracking-wider mb-2 block">Restoration Reason (mandatory)</label>
+                <textarea
+                  value={restoreReason}
+                  onChange={e => setRestoreReason(e.target.value)}
+                  placeholder="Provide justification for restoring access..."
+                  rows={3}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-[#00FFD1]/50 focus:ring-1 focus:ring-[#00FFD1]/30 transition-all resize-none"
+                />
+              </div>
+              <button
+                onClick={() => handleRestore(restoreModal.user_id)}
+                disabled={!restoreReason.trim()}
+                className={clsx(
+                  "w-full py-3 rounded-lg flex items-center justify-center gap-2 text-sm font-bold uppercase tracking-wider border transition-all",
+                  restoreReason.trim()
+                    ? "bg-[#00FFD1]/20 border-[#00FFD1]/50 text-[#00FFD1] hover:bg-[#00FFD1]/30"
+                    : "bg-white/5 border-white/10 text-gray-500 cursor-not-allowed"
+                )}
+              >
+                <Unlock className="w-4 h-4" /> Confirm Restore Access
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes scale-in {
+          from { opacity: 0; transform: scale(0.95); }
+          to { opacity: 1; transform: scale(1); }
+        }
+      `}</style>
     </div>
   );
 };

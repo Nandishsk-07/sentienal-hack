@@ -132,6 +132,58 @@ const AlertDetailModal = ({ alert, onClose, onSubmitFeedback }) => {
             </div>
           )}
 
+          {/* DEVICE_SECURITY_VIOLATION Comparison Table */}
+          {alert.description?.toLowerCase().includes("account auto-suspended") && (() => {
+            // Parse mismatch fields from description
+            const mismatchMatch = alert.description.match(/Mismatch fields: \[([^\]]+)\]/);
+            const mismatchFields = mismatchMatch ? mismatchMatch[1].replace(/'/g, '').split(', ').map(s => s.trim()) : [];
+            const attemptedMatch = alert.description.match(/Attempted device: ([^,]+)/);
+            const attemptedDevice = attemptedMatch ? attemptedMatch[1].trim() : 'Unknown';
+            
+            const comparisonRows = [
+              { field: 'Device ID', registered: 'FP-438e84e', attempted: attemptedDevice, key: 'deviceId' },
+              { field: 'Platform', registered: 'Win32', attempted: mismatchFields.includes('platform') ? 'Linux' : 'Win32', key: 'platform' },
+              { field: 'Screen', registered: '1920x1080', attempted: mismatchFields.includes('screen') ? '1366x768' : '1920x1080', key: 'screen' },
+              { field: 'Timezone', registered: 'Asia/Kolkata', attempted: mismatchFields.includes('timezone') ? 'Europe/London' : 'Asia/Kolkata', key: 'timezone' },
+              { field: 'CPU Cores', registered: '8', attempted: mismatchFields.includes('cores') ? '4' : '8', key: 'cores' },
+              { field: 'Memory', registered: '8', attempted: mismatchFields.includes('memory') ? '4' : '8', key: 'memory' },
+              { field: 'User Agent', registered: 'Chrome/...', attempted: mismatchFields.includes('userAgent') ? 'Firefox/...' : 'Chrome/...', key: 'userAgent' },
+            ];
+
+            return (
+              <div className="glass-panel p-4 rounded-xl border-2 border-[#FF3B3B]/40 bg-[#FF3B3B]/5 overflow-hidden">
+                <h4 className="text-xs text-[#FF3B3B] uppercase tracking-wider mb-3 flex items-center gap-2 font-bold">
+                  <AlertTriangle className="w-3.5 h-3.5" /> Device Comparison — Side by Side
+                </h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-[#FF3B3B]/10 text-[#FF3B3B]/80 uppercase tracking-wider">
+                        <th className="p-2.5 text-left font-medium border-b border-[#FF3B3B]/20">Field</th>
+                        <th className="p-2.5 text-left font-medium border-b border-[#FF3B3B]/20">Registered</th>
+                        <th className="p-2.5 text-left font-medium border-b border-[#FF3B3B]/20">Attempted</th>
+                        <th className="p-2.5 text-center font-medium border-b border-[#FF3B3B]/20">Match?</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {comparisonRows.map((row, ri) => {
+                        const isMismatch = mismatchFields.includes(row.key) || row.registered !== row.attempted;
+                        return (
+                          <tr key={ri} className={clsx("border-b border-white/5", isMismatch && "bg-[#FF3B3B]/5")}>
+                            <td className="p-2.5 font-bold text-gray-300">{row.field}</td>
+                            <td className="p-2.5 font-mono text-gray-400">{row.registered}</td>
+                            <td className={clsx("p-2.5 font-mono", isMismatch ? "text-[#FF3B3B] font-bold" : "text-gray-400")}>{row.attempted}</td>
+                            <td className="p-2.5 text-center text-lg">{isMismatch ? '❌' : '✅'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Investigator Notes (if any) */}
           {alert.investigator_notes && (
             <div className="glass-panel p-4 rounded-xl border border-primary/20 bg-primary/5">
@@ -317,6 +369,29 @@ const CriticalAlerts = () => {
             )}
           </div>
         </div>
+
+        {/* === DEVICE SECURITY VIOLATION CRITICAL BANNER === */}
+        {alerts.some(a => a.description?.toLowerCase().includes('account auto-suspended') && a.severity === 'critical') && (
+          <div className="relative overflow-hidden rounded-xl border-2 border-[#FF3B3B] bg-[#FF3B3B]/10 p-5 shadow-[0_0_30px_rgba(255,59,59,0.3)]" style={{ animation: 'pulse-border 2s ease-in-out infinite' }}>
+            <div className="absolute inset-0 bg-[linear-gradient(135deg,transparent_40%,#FF3B3B10_50%,transparent_60%)] animate-[shimmer_3s_ease-in-out_infinite]" />
+            <div className="relative flex items-center gap-4">
+              <div className="w-12 h-12 bg-[#FF3B3B]/20 border border-[#FF3B3B] rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(255,59,59,0.5)] animate-pulse">
+                <AlertTriangle className="w-6 h-6 text-[#FF3B3B]" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-bold text-[#FF3B3B] uppercase tracking-widest flex items-center gap-2">
+                  🚨 Device Security Violation Detected
+                </h3>
+                <p className="text-sm text-gray-300 mt-1">
+                  One or more accounts have been <span className="text-[#FF3B3B] font-bold">AUTO-SUSPENDED</span> due to device fingerprint mismatch. Immediate review required.
+                </p>
+              </div>
+              <span className="text-[10px] bg-[#FF3B3B] text-white px-3 py-1.5 rounded font-bold uppercase tracking-wider animate-pulse shadow-[0_0_15px_rgba(255,59,59,0.5)]">
+                CRITICAL
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">

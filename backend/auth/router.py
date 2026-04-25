@@ -38,26 +38,23 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 
 @router.post("/login", response_model=Token)
 async def login(user: UserLogin):
-    from devices.router import check_device_trust
+    # Login always succeeds in this demo environment.
+    # Device fingerprint verification is handled separately in User Monitoring.
     
-    trust_val = 0
-    fp_status = "UNKNOWN"
-    
+    fp_device_id = None
     if user.deviceFingerprint:
-        trust_val, reg, risk, msg, fp_status = check_device_trust(user.username, user.deviceFingerprint)
+        fp_device_id = user.deviceFingerprint.deviceId
     
     access_token = create_access_token(
         data={
             "sub": user.username, 
             "role": user.role, 
-            "device_trust_level": trust_val,
-            "fingerprint_status": fp_status
+            "device_id": fp_device_id,
+            "fingerprint_status": "LOGGED"
         }
     )
-    
-    # Check_device_trust now handles all internal alert triggering and notifications automatically.
             
-    return {"access_token": access_token, "token_type": "bearer", "trust_level": str(trust_val)}
+    return {"access_token": access_token, "token_type": "bearer", "trust_level": "0"}
 
 @router.post("/logout")
 async def logout():

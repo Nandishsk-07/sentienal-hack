@@ -5,18 +5,19 @@ import {
   XAxis, YAxis, Tooltip as RechartsTooltip, CartesianGrid
 } from 'recharts';
 import {
-  Users, Search, Filter, ChevronDown, ChevronUp, Eye, Shield,
-  AlertTriangle, Activity, Clock, Database, TrendingUp, X, ExternalLink
+  Users, Search, Filter, ChevronDown, ChevronUp, Eye, Shield, ShieldAlert, Fingerprint, ShieldCheck, ShieldX,
+  AlertTriangle, Activity, Clock, Database, TrendingUp, X, ExternalLink, Wifi, Monitor, Globe, Cpu, MemoryStick
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../contexts/AuthContext';
+import { collectDeviceFingerprint } from '../utils/deviceFingerprint';
 
 /* ─── helpers ─── */
 const riskColor = (score) =>
-  score >= 90 ? '#FF3B3B' : score >= 80 ? '#F97316' : score >= 50 ? '#F59E0B' : '#00FFD1';
+  score > 70 ? '#FF3B3B' : score >= 50 ? '#F59E0B' : '#00FFD1';
 
 const riskLabel = (score) =>
-  score >= 90 ? 'CRITICAL' : score >= 80 ? 'HIGH' : score >= 50 ? 'MEDIUM' : 'LOW';
+  score > 70 ? 'CRITICAL' : score >= 50 ? 'MEDIUM' : 'LOW';
 
 const statusStyle = (s) => {
   switch (s) {
@@ -258,7 +259,125 @@ const UserDetailPanel = ({ user, transactions, onClose }) => {
             </div>
           )}
         </div>
+
+        {/* ─── Device Security Verification ─── */}
+        <DeviceSecurityPanel userId={user.user_id} devices={devices} riskScore={user.risk_score} />
+
       </div>
+    </div>
+  );
+};
+
+/* ─── Device Security Verification Panel ─── */
+const DeviceSecurityPanel = ({ userId, devices, riskScore }) => {
+  console.log('DeviceSecurityPanel Props:', { userId, riskScore });
+  const score = Number(riskScore || 0);
+  const [verifyResult, setVerifyResult] = useState(null);
+  const [verifying, setVerifying] = useState(false);
+  const [spoofMode, setSpoofMode] = useState(false);
+
+  const runDeviceCheck = async () => {
+    setVerifying(true);
+    setVerifyResult(null);
+    const token = localStorage.getItem('sentinel_token');
+    try {
+      let fp = collectDeviceFingerprint();
+      if (spoofMode) {
+        fp = { ...fp, deviceId: `FP-UNKNOWN-${Math.random().toString(16).slice(2, 10)}` };
+      }
+      const res = await axios.post('http://127.0.0.1:8000/devices/verify', {
+        user_id: userId,
+        fingerprint: fp
+      }, { headers: { Authorization: `Bearer ${token}` } });
+      setVerifyResult({ ...res.data, fingerprint: fp });
+    } catch (err) {
+      setVerifyResult({ trust_level: -1, message: err.response?.data?.detail || 'Verification failed', is_registered: false, risk_contribution: 100 });
+    }
+    setVerifying(false);
+  };
+
+  const isFailed = verifyResult && verifyResult.trust_level < 2;
+  const isTrusted = verifyResult && verifyResult.trust_level === 2;
+
+  return (
+    <div className="px-6 pb-6 mt-4">
+      <div className="flex justify-between items-center mb-3">
+        <h3 className="text-sm font-bold text-gray-300 uppercase tracking-widest flex items-center gap-2">
+          <Fingerprint className="w-4 h-4 text-[#F59E0B]" /> Device Security Verification
+          <span className="ml-2 text-[10px] bg-white/5 border border-white/10 px-2 py-0.5 rounded text-muted font-mono">
+            USER RISK: {score}
+          </span>
+        </h3>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={spoofMode} onChange={e => setSpoofMode(e.target.checked)}
+              className="w-3.5 h-3.5 accent-[#FF3B3B] cursor-pointer" />
+            <span className="text-[10px] text-[#FF3B3B] font-bold uppercase tracking-widest">[Demo] Spoof Device</span>
+          </label>
+          <button onClick={runDeviceCheck} disabled={verifying}
+            className="text-xs text-[#F59E0B] border border-[#F59E0B]/30 hover:bg-[#F59E0B]/10 px-3 py-1.5 rounded transition-colors uppercase font-bold tracking-wider disabled:opacity-50 flex items-center gap-1.5">
+            {verifying ? <><Fingerprint className="w-3 h-3 animate-spin" /> Scanning...</> : <><Shield className="w-3 h-3" /> Run Check</>}
+          </button>
+        </div>
+      </div>
+
+      {!verifyResult && !verifying && (
+        <div className="glass-panel rounded-xl border border-white/10 p-6 text-center">
+          <Fingerprint className="w-8 h-8 text-gray-600 mx-auto mb-3" />
+          <p className="text-sm text-gray-500">Click "Run Check" to verify device trust for this user</p>
+        </div>
+      )}
+
+      {verifying && (
+        <div className="glass-panel rounded-xl border border-[#F59E0B]/30 p-8 text-center animate-pulse">
+          <Fingerprint className="w-10 h-10 text-[#F59E0B] mx-auto mb-3 animate-spin" />
+          <p className="text-sm text-[#F59E0B] font-bold uppercase tracking-widest">Scanning Device Fingerprint...</p>
+        </div>
+      )}
+
+      {isFailed && score > 70 && (
+        <div className="rounded-xl border-2 border-[#FF3B3B] bg-[#FF3B3B]/5 overflow-hidden shadow-[0_0_30px_rgba(255,59,59,0.15)]">
+          <div className="bg-[#FF3B3B]/10 p-5 flex items-center gap-4 border-b border-[#FF3B3B]/20">
+            <div className="w-14 h-14 bg-[#FF3B3B]/20 border border-[#FF3B3B] rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(255,59,59,0.4)] animate-pulse">
+              <ShieldAlert className="w-7 h-7 text-[#FF3B3B]" />
+            </div>
+            <div>
+              <h4 className="text-xl font-extrabold text-[#FF3B3B] tracking-widest uppercase">Account Suspended</h4>
+              <p className="text-xs text-gray-400 mt-1">Device mismatch detected for <span className="text-white font-mono">{userId}</span></p>
+            </div>
+          </div>
+          <div className="p-5">
+            <p className="text-sm text-gray-300 mb-3">
+              Login from an <span className="text-[#FF3B3B] font-bold">unrecognized or mismatched device</span> detected.
+            </p>
+            <div className="bg-black/40 rounded-lg border border-white/10 p-3 mb-4">
+              <p className="text-xs text-muted uppercase tracking-wider mb-2">Verification Result</p>
+              <p className="text-sm text-white font-mono">{verifyResult.message}</p>
+              <p className="text-xs text-gray-500 mt-1">Risk contribution: <span className="text-[#FF3B3B] font-bold">+{verifyResult.risk_contribution}</span></p>
+            </div>
+            <div className="flex gap-3">
+              <div className="flex-1 bg-[#F59E0B]/10 border border-[#F59E0B]/30 rounded-lg p-3 flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-[#F59E0B] flex-shrink-0" />
+                <span className="text-xs text-[#F59E0B] font-bold">Branch manager notified automatically.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {(isTrusted || (isFailed && score <= 70)) && (
+        <div className="rounded-xl border-2 border-[#00FFD1] bg-[#00FFD1]/5 p-5 flex items-center gap-4 shadow-[0_0_20px_rgba(0,255,209,0.1)]">
+          <div className="w-12 h-12 bg-[#00FFD1]/20 border border-[#00FFD1] rounded-full flex items-center justify-center">
+            <ShieldCheck className="w-6 h-6 text-[#00FFD1]" />
+          </div>
+          <div>
+            <h4 className="text-lg font-bold text-[#00FFD1] uppercase tracking-wider">Device Trusted</h4>
+            <p className="text-xs text-gray-400 mt-1">
+              {isFailed ? "Device verified successfully (Low Risk Profile)." : verifyResult.message}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -305,9 +424,8 @@ const UserMonitoring = () => {
     if (statusFilter !== 'all') list = list.filter(u => u.status === statusFilter);
     if (riskFilter !== 'all') {
       list = list.filter(u => {
-        if (riskFilter === 'critical') return u.risk_score >= 90;
-        if (riskFilter === 'high') return u.risk_score >= 80 && u.risk_score < 90;
-        if (riskFilter === 'medium') return u.risk_score >= 50 && u.risk_score < 80;
+        if (riskFilter === 'critical') return u.risk_score > 70;
+        if (riskFilter === 'medium') return u.risk_score >= 50 && u.risk_score <= 70;
         return u.risk_score < 50;
       });
     }
@@ -439,7 +557,6 @@ const UserMonitoring = () => {
                   {[
                     { key: 'all', label: 'All', color: 'white' },
                     { key: 'critical', label: 'Critical', color: '#FF3B3B' },
-                    { key: 'high', label: 'High', color: '#F97316' },
                     { key: 'medium', label: 'Medium', color: '#F59E0B' },
                     { key: 'low', label: 'Low', color: '#00FFD1' },
                   ].map(r => (
